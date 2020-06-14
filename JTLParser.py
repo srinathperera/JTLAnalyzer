@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from os import walk
 import sys
+import zipfile
 
 def find_all_files(dir):
     experiment_data = []
@@ -45,8 +46,7 @@ def plot_jtl_behaviours(windowed_stats, latency_sample, experiment_name):
     plt.savefig(experiment_name+ ".png")
 
 
-def parse_jtl(file, experiment_name):
-    df = pd.read_csv(file)
+def parse_jtl(df, experiment_name):
     #print(list(df))
 
     reading_count = df.shape[0]
@@ -72,16 +72,58 @@ def parse_jtl(file, experiment_name):
 #parse_jtl("/Users/srinath/playground/Datasets/SystemsData/JTL/results-measurement-small.jtl")
 #parse_jtl("/Users/srinath/playground/Datasets/SystemsData/JTL/results-measurement.jtl")
 
-print("received arguments", sys.argv)
-if len(sys.argv) != 2:
-    raise Exception("expected one argument, a directory ( which we call root. Have JTLs in root/XX/yy.jtl and XX will be used as experiment name")
-experiment_list = find_all_files(sys.argv[1])
-all_stats = []
-for ex in experiment_list:
-    print(ex[0], ex[1])
-    throughput_min, throughput_max, latency_min, latency_max = parse_jtl(ex[1], ex[0])
-    all_stats.append([ex[0], throughput_min, throughput_max, latency_min, latency_max])
+def parse_with_folder():
+    print("received arguments", sys.argv)
+    if len(sys.argv) != 2:
+        raise Exception("expected one argument, a directory ( which we call root. Have JTLs in root/XX/yy.jtl and XX will be used as experiment name")
+    experiment_list = find_all_files(sys.argv[1])
+    all_stats = []
+    for ex in experiment_list:
+        print(ex[0], ex[1])
+        df = pd.read_csv(ex[1])
+        throughput_min, throughput_max, latency_min, latency_max = parse_jtl(df, ex[0])
+        all_stats.append([ex[0], throughput_min, throughput_max, latency_min, latency_max])
 
-resultsDf = pd.DataFrame(all_stats, columns=["expriement", "throughput90p_min", "throughput90p_max", "latency90p_min", "latency90p_max"])
-resultsDf.to_csv("results.csv")
-print(resultsDf)
+    resultsDf = pd.DataFrame(all_stats, columns=["expriement", "throughput90p_min", "throughput90p_max", "latency90p_min", "latency90p_max"])
+    resultsDf.to_csv("results.csv")
+
+    #import pandas as pd
+    #import zipfile
+
+    #zf = zipfile.ZipFile('C:/Users/Desktop/THEZIPFILE.zip')
+    #df = pd.read_csv(zf.open('intfile.csv'))
+    print(resultsDf)
+
+
+def parse_from_zip_file():
+    print("received arguments", sys.argv)
+    if len(sys.argv) != 2:
+        raise Exception(
+            "expected one argument, a directory ( which we call root. Have JTLs in root/XX/yy.jtl and XX will be used as experiment name")
+    zipped_file = sys.argv[1]
+    zf = zipfile.ZipFile(zipped_file)
+    zip_file_to_read = None
+    for zipfname in zf.namelist():
+        if '/results-measurement.jtl' in zipfname:
+            zip_file_to_read = zipfname
+    if zip_file_to_read is None:
+        raise Exception("No results-measurement.jtl found in ", zipped_file, "only found",  zf.namelist())
+
+    print(zf.namelist())
+    print("reading ", zip_file_to_read, "entry")
+    df = pd.read_csv(zf.open(zip_file_to_read))
+    print(list(df))
+    experiment_name = zipped_file.split('/')[-1].replace(".zip", "")
+    throughput_min, throughput_max, latency_min, latency_max = parse_jtl(df, experiment_name)
+    all_stats = [[experiment_name, throughput_min, throughput_max, latency_min, latency_max]]
+
+    resultsDf = pd.DataFrame(all_stats,
+                             columns=["expriement", "throughput90p_min", "throughput90p_max", "latency90p_min",
+                                      "latency90p_max"])
+    resultsDf.to_csv("results.csv")
+
+    # import pandas as pd
+    #
+    print(resultsDf)
+
+parse_from_zip_file()
